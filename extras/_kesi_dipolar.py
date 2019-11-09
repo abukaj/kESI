@@ -38,7 +38,10 @@ class DipolarSourcesFactory(object):
 
 
     def _dipoles(self, R, step):
-        for altitude, azimuth in altitude_azimuth_mesh(0, step / R):
+        for altitude in np.linspace(0, np.pi/2, int(round(np.pi/2 * R / step)) + 2):
+          for azimuth in np.linspace(0, 2*np.pi, int(round(2 * np.pi * np.cos(altitude) * R / step)) + 2, endpoint=False):
+
+#        for altitude, azimuth in altitude_azimuth_mesh(0, step / R):
             y = R * np.sin(altitude)
             r = R * np.cos(altitude)
             x = r * np.sin(azimuth)
@@ -92,9 +95,12 @@ if __name__ == '__main__':
     WHITE_R = 7.5
     RAD_TOL = 0.01
     NECK_ANGLE = np.pi / 6 # -np.pi / 3
-    RADIANS_PER_ELECTRODE = 7 * np.pi / 180
+    RADIANS_PER_ELECTRODE = 5 * np.pi / 180
 
     ele_coords = []
+#    for altitude in np.linspace(NECK_ANGLE, np.pi / 2, 16):
+#      for azimuth in np.linspace(0, 2 * np.pi, int(round(np.cos(altitude) * 36 / np.pi))+1,
+#                               endpoint=False):
 
     for altitude, azimuth in altitude_azimuth_mesh(NECK_ANGLE,
                                                    RADIANS_PER_ELECTRODE):
@@ -119,6 +125,7 @@ if __name__ == '__main__':
     DIPOLES, sources = dipolar_source_factory(0.5 * (BRAIN_R + WHITE_R),
                                               2.)
     SRC_DIPOLE = DIPOLES.iloc[324].copy()
+    #SRC_DIPOLE = DIPOLES.iloc[1324].copy()
     SRC_DIPOLE['PX'] = -1
     SRC_DIPOLE['PY'] = 1
     SRC_DIPOLE['PZ'] = 0.05
@@ -228,99 +235,101 @@ if __name__ == '__main__':
                                                        MeasurementManager(ELECTRODES))
 
     K = reconstructor2._kernel
-    EIGENVALUES = abs(np.linalg.eigvalsh(K))
-    LOG_START = np.floor(np.log10(EIGENVALUES.min())) - 2
-    LOG_END = np.ceil(np.log10(EIGENVALUES.max())) + 4
-    REGULARIZATION_PARAMETERS = [0] + list(np.logspace(LOG_START, LOG_END, 100))
-    CV_ERROR = cv(reconstructor2, DF.V, REGULARIZATION_PARAMETERS)
-    idx = np.argmin(CV_ERROR)
-    regularization_parameter = REGULARIZATION_PARAMETERS[idx]
-    plt.figure()
-    plt.title('CV')
-    plt.xscale('symlog', linthreshx=10**LOG_START)
-    plt.axvspan(EIGENVALUES.min(), EIGENVALUES.max(), color=cbf.YELLOW)
-    for x in EIGENVALUES:
-        plt.axvline(x, ls='--', color=cbf.ORANGE)
-    plt.plot(REGULARIZATION_PARAMETERS, CV_ERROR, color=cbf.BLUE)
-    plt.axvline(regularization_parameter, ls=':', color=cbf.BLACK)
+    EIGENVALUES = np.linalg.eigvalsh(K)
+    if EIGENVALUES.min() <= 0:
+        print('FOUND!')
+    #LOG_START = np.floor(np.log10(EIGENVALUES.min())) - 2
+    #LOG_END = np.ceil(np.log10(EIGENVALUES.max())) + 4
+    #REGULARIZATION_PARAMETERS = [0] + list(np.logspace(LOG_START, LOG_END, 100))
+    #CV_ERROR = cv(reconstructor2, DF.V, REGULARIZATION_PARAMETERS)
+    #idx = np.argmin(CV_ERROR)
+    #regularization_parameter = REGULARIZATION_PARAMETERS[idx]
+    #plt.figure()
+    #plt.title('CV')
+    #plt.xscale('symlog', linthreshx=10**LOG_START)
+    #plt.axvspan(EIGENVALUES.min(), EIGENVALUES.max(), color=cbf.YELLOW)
+    #for x in EIGENVALUES:
+    #    plt.axvline(x, ls='--', color=cbf.ORANGE)
+    #plt.plot(REGULARIZATION_PARAMETERS, CV_ERROR, color=cbf.BLUE)
+    #plt.axvline(regularization_parameter, ls=':', color=cbf.BLACK)
 
-    for rp in [0, regularization_parameter]:
-        approximator = reconstructor2(DF.V,
-                                      regularization_parameter=rp)
-        DIPOLES['W'] = approximator.dipole_moments()
-        DIPOLES['WPX'] = DIPOLES.PX * DIPOLES.W
-        DIPOLES['WPY'] = DIPOLES.PY * DIPOLES.W
-        DIPOLES['WPZ'] = DIPOLES.PZ * DIPOLES.W
+    #for rp in [0, regularization_parameter]:
+    #    approximator = reconstructor2(DF.V,
+    #                                  regularization_parameter=rp)
+    #    DIPOLES['W'] = approximator.dipole_moments()
+    #    DIPOLES['WPX'] = DIPOLES.PX * DIPOLES.W
+    #    DIPOLES['WPY'] = DIPOLES.PY * DIPOLES.W
+    #    DIPOLES['WPZ'] = DIPOLES.PZ * DIPOLES.W
 
 
-        fig = plt.figure()
-        fig.suptitle('$\\lambda = {:g}$'.format(rp))
-        ax = plt.subplot(2, 2, 1)
-        ZOOM = 2
-        ax.set_title('Dipole XY (dipole zoom = {})'.format(ZOOM))
-        ax.set_aspect('equal')
+    #    fig = plt.figure()
+    #    fig.suptitle('$\\lambda = {:g}$'.format(rp))
+    #    ax = plt.subplot(2, 2, 1)
+    #    ZOOM = 2
+    #    ax.set_title('Dipole XY (dipole zoom = {})'.format(ZOOM))
+    #    ax.set_aspect('equal')
 
-        for (R, AL, AZ), ROW in DIPOLES.groupby(['R', 'ALTITUDE', 'AZIMUTH']):
-            ax.arrow(R * (np.pi / 2 - AL) * np.cos(AZ),
-                     R * (np.pi/2 - AL) * np.sin(AZ),
-                     ZOOM * ROW.WPX.sum(),
-                     ZOOM * ROW.WPY.sum(),
-                     color=cbf.SKY_BLUE)
-        ax.arrow(SRC_DIPOLE.R * (np.pi / 2 - SRC_DIPOLE.ALTITUDE) * np.cos(SRC_DIPOLE.AZIMUTH),
-                 SRC_DIPOLE.R * (np.pi / 2 - SRC_DIPOLE.ALTITUDE) * np.sin(SRC_DIPOLE.AZIMUTH),
-                 ZOOM * SRC_DIPOLE.PX,
-                 ZOOM * SRC_DIPOLE.PY,
-                 color=cbf.VERMILION,
-                 ls=':')
+    #    for (R, AL, AZ), ROW in DIPOLES.groupby(['R', 'ALTITUDE', 'AZIMUTH']):
+    #        ax.arrow(R * (np.pi / 2 - AL) * np.cos(AZ),
+    #                 R * (np.pi/2 - AL) * np.sin(AZ),
+    #                 ZOOM * ROW.WPX.sum(),
+    #                 ZOOM * ROW.WPY.sum(),
+    #                 color=cbf.SKY_BLUE)
+    #    ax.arrow(SRC_DIPOLE.R * (np.pi / 2 - SRC_DIPOLE.ALTITUDE) * np.cos(SRC_DIPOLE.AZIMUTH),
+    #             SRC_DIPOLE.R * (np.pi / 2 - SRC_DIPOLE.ALTITUDE) * np.sin(SRC_DIPOLE.AZIMUTH),
+    #             ZOOM * SRC_DIPOLE.PX,
+    #             ZOOM * SRC_DIPOLE.PY,
+    #             color=cbf.VERMILION,
+    #             ls=':')
 
-        ax.set_xlim(-13, 13)
-        ax.set_ylim(-13, 13)
+    #    ax.set_xlim(-13, 13)
+    #    ax.set_ylim(-13, 13)
 
-        ax = plt.subplot(2, 2, 2)
-        ZOOM = 2
-        ax.set_title('Dipole ZY (dipole zoom = {})'.format(ZOOM))
-        ax.set_aspect('equal')
-        for (R, AL, AZ), ROW in DIPOLES.groupby(['R', 'ALTITUDE', 'AZIMUTH']):
-            ax.arrow(R * (np.pi / 2 - AL) * np.cos(AZ),
-                     R * (np.pi / 2 - AL) * np.sin(AZ),
-                     ZOOM * ROW.WPZ.sum(),
-                     ZOOM * ROW.WPY.sum(),
-                     color=cbf.SKY_BLUE)
+    #    ax = plt.subplot(2, 2, 2)
+    #    ZOOM = 2
+    #    ax.set_title('Dipole ZY (dipole zoom = {})'.format(ZOOM))
+    #    ax.set_aspect('equal')
+    #    for (R, AL, AZ), ROW in DIPOLES.groupby(['R', 'ALTITUDE', 'AZIMUTH']):
+    #        ax.arrow(R * (np.pi / 2 - AL) * np.cos(AZ),
+    #                 R * (np.pi / 2 - AL) * np.sin(AZ),
+    #                 ZOOM * ROW.WPZ.sum(),
+    #                 ZOOM * ROW.WPY.sum(),
+    #                 color=cbf.SKY_BLUE)
 
-        ax.arrow(SRC_DIPOLE.R * (np.pi / 2 - SRC_DIPOLE.ALTITUDE) * np.cos(
-            SRC_DIPOLE.AZIMUTH),
-                 SRC_DIPOLE.R * (np.pi / 2 - SRC_DIPOLE.ALTITUDE) * np.sin(
-                     SRC_DIPOLE.AZIMUTH),
-                 ZOOM * SRC_DIPOLE.PZ,
-                 ZOOM * SRC_DIPOLE.PY,
-                 color=cbf.VERMILION,
-                 ls=':')
+    #    ax.arrow(SRC_DIPOLE.R * (np.pi / 2 - SRC_DIPOLE.ALTITUDE) * np.cos(
+    #        SRC_DIPOLE.AZIMUTH),
+    #             SRC_DIPOLE.R * (np.pi / 2 - SRC_DIPOLE.ALTITUDE) * np.sin(
+    #                 SRC_DIPOLE.AZIMUTH),
+    #             ZOOM * SRC_DIPOLE.PZ,
+    #             ZOOM * SRC_DIPOLE.PY,
+    #             color=cbf.VERMILION,
+    #             ls=':')
 
-        ax.set_xlim(-13, 13)
-        ax.set_ylim(-13, 13)
+    #    ax.set_xlim(-13, 13)
+    #    ax.set_ylim(-13, 13)
 
-        ax = plt.subplot(2, 2, 3)
-        ZOOM = 2
-        ax.set_title('Dipole XZ (dipole zoom = {})'.format(ZOOM))
-        ax.set_aspect('equal')
+    #    ax = plt.subplot(2, 2, 3)
+    #    ZOOM = 2
+    #    ax.set_title('Dipole XZ (dipole zoom = {})'.format(ZOOM))
+    #    ax.set_aspect('equal')
 
-        for (R, AL, AZ), ROW in DIPOLES.groupby(['R', 'ALTITUDE', 'AZIMUTH']):
-            ax.arrow(R * (np.pi / 2 - AL) * np.cos(AZ),
-                     R * (np.pi / 2 - AL) * np.sin(AZ),
-                     ZOOM * ROW.WPX.sum(),
-                     ZOOM * ROW.WPZ.sum(),
-                     color=cbf.SKY_BLUE)
+    #    for (R, AL, AZ), ROW in DIPOLES.groupby(['R', 'ALTITUDE', 'AZIMUTH']):
+    #        ax.arrow(R * (np.pi / 2 - AL) * np.cos(AZ),
+    #                 R * (np.pi / 2 - AL) * np.sin(AZ),
+    #                 ZOOM * ROW.WPX.sum(),
+    #                 ZOOM * ROW.WPZ.sum(),
+    #                 color=cbf.SKY_BLUE)
 
-        ax.arrow(SRC_DIPOLE.R * (np.pi / 2 - SRC_DIPOLE.ALTITUDE) * np.cos(
-            SRC_DIPOLE.AZIMUTH),
-                 SRC_DIPOLE.R * (np.pi / 2 - SRC_DIPOLE.ALTITUDE) * np.sin(
-                     SRC_DIPOLE.AZIMUTH),
-                 ZOOM * SRC_DIPOLE.PX,
-                 ZOOM * SRC_DIPOLE.PZ,
-                 color=cbf.VERMILION,
-                 ls=':')
+    #    ax.arrow(SRC_DIPOLE.R * (np.pi / 2 - SRC_DIPOLE.ALTITUDE) * np.cos(
+    #        SRC_DIPOLE.AZIMUTH),
+    #             SRC_DIPOLE.R * (np.pi / 2 - SRC_DIPOLE.ALTITUDE) * np.sin(
+    #                 SRC_DIPOLE.AZIMUTH),
+    #             ZOOM * SRC_DIPOLE.PX,
+    #             ZOOM * SRC_DIPOLE.PZ,
+    #             color=cbf.VERMILION,
+    #             ls=':')
 
-        ax.set_xlim(-13, 13)
-        ax.set_ylim(-13, 13)
+    #    ax.set_xlim(-13, 13)
+    #    ax.set_ylim(-13, 13)
 
     plt.show()
